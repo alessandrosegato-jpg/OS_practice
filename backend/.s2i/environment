@@ -1,0 +1,2 @@
+APP_MODULE=app:app
+GUNICORN_CMD_ARGS=--workers=2 --access-logfile=-
