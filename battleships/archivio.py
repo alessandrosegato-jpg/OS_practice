@@ -96,32 +96,4 @@ def aggiungi_vittoria(nome):
 
 
 def leggi_classifica():
-    return r.zrevrange("classifica", 0, 9, withscores=True)        _a_testo(cella): nome
-        for nome, celle in griglia.navi.items()
-        for cella in celle
-    })
-    if griglia.colpi_ricevuti:
-        pipe.sadd(chiave_colpi, *[_a_testo(c) for c in griglia.colpi_ricevuti])
-    pipe.expire(chiave_navi, SCADENZA)
-    pipe.expire(chiave_colpi, SCADENZA)
-    pipe.execute()
-
-
-def carica_griglia(id_partita, chi):
-    griglia = Griglia()
-    for testo, nome in r.hgetall(f"partita:{id_partita}:navi:{chi}").items():
-        griglia.navi.setdefault(nome, set()).add(_da_testo(testo))
-    griglia.colpi_ricevuti = {
-        _da_testo(testo) for testo in r.smembers(f"partita:{id_partita}:colpi:{chi}")
-    }
-    return griglia
-
-
-# ---------- La classifica ----------
-
-def aggiungi_vittoria(nome):
-    r.zincrby("classifica", 1, nome)
-
-
-def leggi_classifica():
     return r.zrevrange("classifica", 0, 9, withscores=True)
