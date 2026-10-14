@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Battaglia Navale</title>
+  <style>
+    :root {
+      --mare: #0b2540;
+      --mare-chiaro: #13385e;
+      --cella: #1b4a78;
+      --cella-hover: #2a6aa8;
+      --nave: #8fa3b8;
+      --colpito: #e4572e;
+      --acqua: #5fa8d3;
+      --testo: #eef4fa;
+      --testo-tenue: #9bb4cc;
+      --oro: #f2c14e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, var(--mare-chiaro), var(--mare) 70%);
+      color: var(--testo);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      padding: 24px 16px;
+    }
+    h1 { text-align: center; margin: 0 0 4px; letter-spacing: 0.04em; }
+    .sottotitolo { text-align: center; color: var(--testo-tenue); margin: 0 0 24px; }
+    .nascosto { display: none !important; }
+
+    /* ---------- Riquadri (inizio, sfida, link) ---------- */
+    .riquadro {
+      max-width: 460px; margin: 0 auto 24px;
+      background: rgba(255,255,255,0.06); border-radius: 12px; padding: 24px;
+    }
+    .riquadro label, .riquadro p { display: block; margin: 0 0 10px; color: var(--testo-tenue); }
+    .riquadro strong { color: var(--testo); }
+    .riga { display: flex; gap: 8px; }
+    input {
+      flex: 1; min-width: 0; padding: 10px 12px; border-radius: 8px; border: none;
+      font-size: 16px; background: #eef4fa; color: #0b2540;
+    }
+    button {
+      padding: 10px 16px; border-radius: 8px; border: none; cursor: pointer;
+      font-size: 16px; font-weight: 600; background: var(--oro); color: #0b2540;
+    }
+    button:hover { filter: brightness(1.08); }
+    button.secondario { background: rgba(255,255,255,0.12); color: var(--testo); }
+    .errore { color: #ff9b7d; min-height: 20px; margin-top: 10px; }
+    .classifica h2 { font-size: 16px; margin: 24px 0 8px; color: var(--testo-tenue); }
+    .classifica ol { margin: 0; padding-left: 20px; }
+    .classifica li { padding: 2px 0; }
+
+    /* ---------- Partita ---------- */
+    .stato {
+      text-align: center; font-size: 18px; min-height: 28px; margin-bottom: 16px;
+    }
+    .stato.mio-turno { color: var(--oro); font-weight: 700; }
+    .campi { display: flex; flex-wrap: wrap; justify-content: center; gap: 32px; }
+    .campo h2 { font-size: 16px; text-align: center; margin: 0 0 8px; color: var(--testo-tenue); }
+    .griglia {
+      display: grid;
+      grid-template-columns: repeat(11, minmax(0, 32px));
+      gap: 2px;
+    }
+    .etichetta {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; color: var(--testo-tenue); aspect-ratio: 1;
+    }
+    .cella {
+      aspect-ratio: 1; border-radius: 4px; background: var(--cella);
+      display: flex; align-items: center; justify-content: center; font-size: 14px;
+    }
+    .cella.nave { background: var(--nave); }
+    .cella.colpito { background: var(--colpito); }
+    .cella.colpito::after { content: "✕"; font-weight: bold; }
+    .cella.acqua::after {
+      content: ""; width: 30%; height: 30%; border-radius: 50%; background: var(--acqua);
+    }
+    .nemico .cella.libera { cursor: crosshair; }
+    .nemico .cella.libera:hover { background: var(--cella-hover); }
+    .nemico.bloccato { opacity: 0.6; }
+    .nemico.bloccato .cella { cursor: default; }
+    .nemico.bloccato .cella.libera:hover { background: var(--cella); }
+
+    .flotta { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 10px; max-width: 360px; }
+    .flotta span { font-size: 12px; padding: 3px 8px; border-radius: 99px; background: rgba(255,255,255,0.1); }
+    .flotta span.affondata { background: var(--colpito); text-decoration: line-through; }
+
+    .comandi { text-align: center; margin-top: 24px; }
+    .fine {
+      text-align: center; font-size: 22px; font-weight: 700; margin: 0 auto 16px;
+      padding: 12px; border-radius: 10px; max-width: 760px;
+    }
+    .fine.vinto { background: rgba(242,193,78,0.2); color: var(--oro); }
+    .fine.perso { background: rgba(228,87,46,0.2); color: #ff9b7d; }
+  </style>
+</head>
+<body>
+  <h1>⚓ Battaglia Navale</h1>
+  <p class="sottotitolo">Sfida un amico: chi affonda prima la flotta dell'altro vince</p>
+
+  <!-- 1. Schermata iniziale: crea una partita -->
+  <section id="schermata-inizio" class="riquadro nascosto">
+    <label for="nome-crea">Come ti chiami?</label>
+    <div class="riga">
+      <input id="nome-crea" maxlength="20" placeholder="Il tuo nome">
+      <button id="bottone-crea">Crea partita</button>
+    </div>
+    <div id="errore-crea" class="errore"></div>
+    <div class="classifica">
+      <h2>🏆 Classifica</h2>
+      <ol id="classifica"></ol>
+    </div>
+  </section>
+
+  <!-- 2. Chi ha ricevuto il link: accetta la sfida -->
+  <section id="schermata-sfida" class="riquadro nascosto">
+    <p id="testo-sfida"></p>
+    <div id="form-sfida">
+      <label for="nome-sfida">Come ti chiami?</label>
+      <div class="riga">
+        <input id="nome-sfida" maxlength="20" placeholder="Il tuo nome">
+        <button id="bottone-sfida">Accetta la sfida</button>
+      </div>
+    </div>
+    <div id="errore-sfida" class="errore"></div>
+  </section>
+
+  <!-- 3. La partita -->
+  <section id="schermata-gioco" class="nascosto">
+    <div id="riquadro-link" class="riquadro nascosto">
+      <p><strong>Manda questo link al tuo avversario:</strong></p>
+      <div class="riga">
+        <input id="link" readonly>
+        <button id="bottone-copia">Copia</button>
+      </div>
+      <p style="margin-top: 10px">La partita comincia appena lo apre. Intanto ecco la tua flotta 👇</p>
+    </div>
+    <div id="fine" class="fine nascosto"></div>
+    <div id="stato" class="stato"></div>
+    <div class="campi">
+      <div class="campo">
+        <h2>La tua flotta</h2>
+        <div id="griglia-mia" class="griglia"></div>
+        <div id="flotta-mia" class="flotta"></div>
+      </div>
+      <div class="campo">
+        <h2 id="titolo-nemico">Mare nemico</h2>
+        <div id="griglia-nemica" class="griglia nemico"></div>
+        <div id="flotta-nemica" class="flotta"></div>
+      </div>
+    </div>
+    <div class="comandi">
+      <button id="bottone-nuova" class="secondario">Nuova partita</button>
+    </div>
+  </section>
+
+  <script>
+    const LETTERE = "ABCDEFGHIJ";
+    const FLOTTA = ["portaerei", "corazzata", "incrociatore", "sottomarino", "cacciatorpediniere"];
+    const MESSAGGI = { acqua: "Acqua 🌊", colpito: "Colpito! 💥", affondato: "Colpito e affondato! 🔥" };
+
+    const $ = id => document.getElementById(id);
+
+    let idPartita = new URLSearchParams(location.search).get("p");  // dal link: ?p=abc123
+    let codice = null;       // il mio codice segreto per questa partita
+    let partita = null;      // lo stato della partita, come arriva dal server
+    let inAttesa = false;    // true mentre aspettiamo la risposta a un colpo
+    let ultimoMessaggio = "";
+
+    // ---------- Chiamate al server ----------
+
+    async function chiama(metodo, indirizzo, corpo) {
+      const risposta = await fetch(indirizzo, {
+        method: metodo,
+        headers: { "Content-Type": "application/json" },
+        body: corpo ? JSON.stringify(corpo) : undefined,
+      });
+      const dati = await risposta.json();
+      if (!risposta.ok) throw new Error(dati.detail || "Errore del server");
+      return dati;
+    }
+
+    // Il browser ricorda il codice segreto di ogni partita:
+    // così se ricarichi la pagina rientri nella tua partita.
+    function salvaCodice(id, valore) {
+      try { localStorage.setItem("codice:" + id, valore); } catch (e) {}
+    }
+    function leggiCodice(id) {
+      try { return localStorage.getItem("codice:" + id); } catch (e) { return null; }
+    }
+
+    function mostra(schermata) {
+      for (const s of ["inizio", "sfida", "gioco"]) {
+        $("schermata-" + s).classList.toggle("nascosto", s !== schermata);
+      }
+    }
+
+    // ---------- Disegno ----------
+
+    function etichetta(testo) {
+      const div = document.createElement("div");
+      div.className = "etichetta";
+      div.textContent = testo;
+      return div;
+    }
+
+    function disegnaGriglia(contenitore, classePerCella, alClick) {
+      contenitore.innerHTML = "";
+      contenitore.append(etichetta(""));
+      for (let c = 1; c <= 10; c++) contenitore.append(etichetta(c));
+      for (const lettera of LETTERE) {
+        contenitore.append(etichetta(lettera));
+        for (let c = 1; c <= 10; c++) {
+          const nome = lettera + c;
+          const cella = document.createElement("div");
+          cella.className = "cella " + classePerCella(nome);
+          cella.title = nome;
+          if (alClick) cella.onclick = () => alClick(nome);
+          contenitore.append(cella);
+        }
+      }
+    }
+
+    function disegnaFlotta(contenitore, affondate) {
+      contenitore.innerHTML = "";
+      for (const nave of FLOTTA) {
+        const span = document.createElement("span");
+        span.textContent = nave;
+        if (affondate.includes(nave)) span.className = "affondata";
+        contenitore.append(span);
+      }
+    }
+
+    function disegna() {
+      const mia = partita.mia_griglia;
+      const nemica = partita.griglia_nemica;
+      const finita = partita.stato === "finita";
+      const puoiSparare = partita.tocca_a_me && !inAttesa;
+
+      // Il riquadro col link si vede solo finché l'avversario non arriva
+      $("riquadro-link").classList.toggle("nascosto", partita.stato !== "in_attesa");
+      $("link").value = location.origin + "/?p=" + partita.id;
+
+      // La mia griglia: le mie navi + i colpi dell'avversario
+      const celleNavi = new Set(Object.values(mia.navi).flat());
+      disegnaGriglia($("griglia-mia"), nome =>
+        mia.colpi_ricevuti[nome] || (celleNavi.has(nome) ? "nave" : ""));
+      const mieAffondate = Object.entries(mia.navi)
+        .filter(([, celle]) => celle.every(c => mia.colpi_ricevuti[c]))
+        .map(([nome]) => nome);
+      disegnaFlotta($("flotta-mia"), mieAffondate);
+
+      // La griglia nemica: solo i miei colpi (le sue navi restano nascoste)
+      $("titolo-nemico").textContent = partita.nome_avversario
+        ? `Mare di ${partita.nome_avversario}` : "Mare nemico";
+      disegnaGriglia($("griglia-nemica"), nome => nemica.colpi[nome] || "libera", spara);
+      $("griglia-nemica").classList.toggle("bloccato", !puoiSparare);
+      disegnaFlotta($("flotta-nemica"), nemica.navi_affondate);
+
+      // La riga di stato
+      const stato = $("stato");
+      stato.classList.toggle("mio-turno", puoiSparare);
+      if (finita) stato.textContent = "";
+      else if (partita.stato === "in_attesa") stato.textContent = "⏳ In attesa dell'avversario…";
+      else if (inAttesa) stato.textContent = "Fuoco!…";
+      else if (partita.tocca_a_me) stato.textContent = (ultimoMessaggio ? ultimoMessaggio + " — " : "") + "Tocca a te: spara nel mare nemico";
+      else stato.textContent = (ultimoMessaggio ? ultimoMessaggio + " — " : "") + `Tocca a ${partita.nome_avversario}…`;
+
+      // Fine partita
+      $("fine").classList.toggle("nascosto", !finita);
+      if (finita) {
+        $("fine").className = "fine " + (partita.ho_vinto ? "vinto" : "perso");
+        $("fine").textContent = partita.ho_vinto
+          ? `🏆 Hai vinto in ${partita.colpi_sparati} colpi!`
+          : `💀 ${partita.nome_avversario} ha affondato tutta la tua flotta`;
+      }
+    }
+
+    // ---------- Azioni ----------
+
+    async function creaPartita() {
+      const nome = $("nome-crea").value.trim();
+      if (!nome) { $("errore-crea").textContent = "Scrivi il tuo nome"; return; }
+      try {
+        const dati = await chiama("POST", "/api/partite", { nome });
+        entraInPartita(dati.id, dati.codice);
+      } catch (errore) {
+        $("errore-crea").textContent = errore.message;
+      }
+    }
+
+    async function accettaSfida() {
+      const nome = $("nome-sfida").value.trim();
+      if (!nome) { $("errore-sfida").textContent = "Scrivi il tuo nome"; return; }
+      try {
+        const dati = await chiama("POST", `/api/partite/${idPartita}/unisciti`, { nome });
+        entraInPartita(dati.id, dati.codice);
+      } catch (errore) {
+        $("errore-sfida").textContent = errore.message;
+      }
+    }
+
+    function entraInPartita(id, valore) {
+      idPartita = id;
+      codice = valore;
+      salvaCodice(id, valore);
+      history.replaceState(null, "", "/?p=" + id);   // l'indirizzo diventa il link della partita
+      mostra("gioco");
+      aggiorna();
+    }
+
+    async function spara(nome) {
+      if (!partita.tocca_a_me || inAttesa || partita.griglia_nemica.colpi[nome]) return;
+      inAttesa = true;
+      disegna();
+      try {
+        const risposta = await chiama("POST", `/api/partite/${idPartita}/spara`, { codice, cella: nome });
+        const c = risposta.colpo;
+        ultimoMessaggio = `${c.cella}: ${MESSAGGI[c.esito]}` + (c.esito === "affondato" ? ` (${c.nave})` : "");
+        partita = risposta.partita;
+      } catch (errore) {
+        ultimoMessaggio = "⚠️ " + errore.message;
+      }
+      inAttesa = false;
+      disegna();
+    }
+
+    // Ogni secondo e mezzo chiediamo al server com'è la situazione:
+    // è così che vediamo l'arrivo dell'avversario e i suoi colpi.
+    async function aggiorna() {
+      if (!codice || inAttesa) return;
+      try {
+        const nuova = await chiama("GET", `/api/partite/${idPartita}?codice=${codice}`);
+        if (partita && !partita.tocca_a_me && nuova.tocca_a_me) ultimoMessaggio = "";
+        partita = nuova;
+        disegna();
+      } catch (errore) {
+        $("stato").textContent = "⚠️ " + errore.message;
+      }
+    }
+    setInterval(() => {
+      if (partita && partita.stato !== "finita") aggiorna();
+    }, 1500);
+
+    async function caricaClassifica() {
+      const lista = $("classifica");
+      try {
+        const classifica = await chiama("GET", "/api/classifica");
+        lista.innerHTML = classifica.length ? "" : "<li>Ancora nessuna vittoria</li>";
+        for (const riga of classifica) {
+          const li = document.createElement("li");
+          li.textContent = `${riga.nome}: ${riga.vittorie} ${riga.vittorie === 1 ? "vittoria" : "vittorie"}`;
+          lista.append(li);
+        }
+      } catch (errore) {
+        lista.innerHTML = "<li>Classifica non disponibile</li>";
+      }
+    }
+
+    // ---------- Avvio: cosa mostrare quando si apre la pagina ----------
+
+    $("bottone-crea").onclick = creaPartita;
+    $("nome-crea").onkeydown = e => { if (e.key === "Enter") creaPartita(); };
+    $("bottone-sfida").onclick = accettaSfida;
+    $("nome-sfida").onkeydown = e => { if (e.key === "Enter") accettaSfida(); };
+    $("bottone-nuova").onclick = () => { location.href = "/"; };
+    $("bottone-copia").onclick = async () => {
+      $("link").select();
+      try { await navigator.clipboard.writeText($("link").value); } catch (e) { document.execCommand("copy"); }
+      $("bottone-copia").textContent = "Copiato!";
+    };
+
+    (async () => {
+      if (!idPartita) {
+        // Nessun link: pagina iniziale
+        mostra("inizio");
+        caricaClassifica();
+        return;
+      }
+
+      codice = leggiCodice(idPartita);
+      if (codice) {
+        // Ho già il codice: è una mia partita, ci rientro
+        mostra("gioco");
+        aggiorna();
+        return;
+      }
+
+      // Ho aperto il link di qualcun altro: mostro la sfida
+      mostra("sfida");
+      try {
+        const info = await chiama("GET", `/api/partite/${idPartita}/info`);
+        if (info.posto_libero) {
+          $("testo-sfida").innerHTML = "";
+          const forte = document.createElement("strong");
+          forte.textContent = info.sfidante;
+          $("testo-sfida").append("⚔️ ", forte, " ti ha sfidato a battaglia navale!");
+        } else {
+          $("testo-sfida").textContent = "Questa partita ha già due giocatori.";
+          $("form-sfida").classList.add("nascosto");
+        }
+      } catch (errore) {
+        $("testo-sfida").textContent = "Partita non trovata o scaduta.";
+        $("form-sfida").classList.add("nascosto");
+      }
+    })();
+  </script>
+</body>
+</html>
